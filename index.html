@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -827,7 +825,7 @@ ${ticker}
           <div class="history-name">${escapeHtml(item.title || item.ticker)}</div>
           <div class="history-date">${formatDateTime(item.createdAt)}</div>
         </div>
-        <div class="history-preview">${escapeHtml((item.result || item.prompt || "").replace(/\\\\n/g, " ").slice(0, 180))}</div>
+        <div class="history-preview">${escapeHtml((item.result || item.prompt || "").replace(/\n/g, " ").slice(0, 180))}</div>
         <div class="row" style="margin-top:10px">
           <button class="btn-secondary btn-load" data-id="${item.id}">불러오기</button>
           <button class="btn-secondary btn-copy" data-id="${item.id}">결과 복사</button>
