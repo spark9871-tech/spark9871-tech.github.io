@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>재무 데이터 수집 대시보드</title>
+  <style>
+    :root{
+      --bg:#0f172a;
+      --card:#1e293b;
+      --card2:#334155;
+      --text:#f8fafc;
+      --muted:#94a3b8;
+      --line:rgba(148,163,184,.2);
+      --accent:#38bdf8;
+      --accent2:#0ea5e9;
+      --ok:#22c55e;
+      --err:#ef4444;
+      --warn:#f59e0b;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      line-height:1.55;
+      padding:20px;
+    }
+    .wrap{max-width:1400px;margin:0 auto}
+    header{
+      margin-bottom:24px;
+      padding-bottom:16px;
+      border-bottom:1px solid var(--line);
+    }
+    h1{font-size:28px;color:var(--accent);margin-bottom:8px}
+    .sub{color:var(--muted)}
+    .tabs{
+      display:flex;gap:8px;flex-wrap:wrap;
+      margin-bottom:18px;
+    }
+    .tab{
+      background:transparent;color:var(--muted);
+      border:1px solid var(--line);
+      border-radius:10px;padding:10px 14px;cursor:pointer
+    }
+    .tab.active{color:var(--accent);border-color:var(--accent)}
+    .panel{display:none}
+    .panel.active{display:block}
+    .grid{
+      display:grid;
+      grid-template-columns:1.1fr .9fr;
+      gap:16px;
+    }
+    .card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:18px;
+      margin-bottom:16px;
+    }
+    .card h2{font-size:18px;margin-bottom:14px;color:var(--accent)}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .row + .row{margin-top:10px}
+    input[type="text"], textarea, select{
+      width:100%;
+      background:var(--card2);
+      color:var(--text);
+      border:1px solid var(--line);
+      border-radius:10px;
+      padding:12px 14px;
+      font-size:14px;
+    }
+    textarea{
+      min-height:220px;
+      resize:vertical;
+      font-family:Consolas, Monaco, monospace;
+      line-height:1.6;
+    }
+    button, .btn-link{
+      border:none;
+      border-radius:10px;
+      padding:11px 14px;
+      cursor:pointer;
+      font-size:14px;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+    }
+    .btn-primary{background:var(--accent);color:#082032;font-weight:700}
+    .btn-primary:hover{background:var(--accent2)}
+    .btn-secondary{background:var(--card2);color:var(--text);border:1px solid var(--line)}
+    .btn-success{background:rgba(34,197,94,.15);color:#86efac;border:1px solid rgba(34,197,94,.3)}
+    .btn-danger{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.3)}
+    .btn-warn{background:rgba(245,158,11,.15);color:#fcd34d;border:1px solid rgba(245,158,11,.3)}
+    .status{
+      margin-top:12px;padding:12px 14px;border-radius:10px;
+      border:1px solid var(--line);display:none
+    }
+    .status.show{display:block}
+    .status.info{background:rgba(56,189,248,.12);color:#7dd3fc}
+    .status.success{background:rgba(34,197,94,.12);color:#86efac}
+    .status.error{background:rgba(239,68,68,.12);color:#fca5a5}
+    .status.warn{background:rgba(245,158,11,.12);color:#fcd34d}
+    .meta{
+      display:grid;grid-template-columns:repeat(2,1fr);gap:10px
+    }
+    .small{font-size:12px;color:var(--muted)}
+    .history-list{display:grid;gap:10px}
+    .history-item{
+      background:var(--card2);
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:14px;
+      cursor:pointer;
+    }
+    .history-item:hover{border-color:var(--accent)}
+    .history-top{
+      display:flex;justify-content:space-between;gap:10px;align-items:center;
+      margin-bottom:6px
+    }
+    .history-name{font-weight:700;color:var(--accent)}
+    .history-date{font-size:12px;color:var(--muted)}
+    .history-preview{
+      color:#cbd5e1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+    }
+    .empty{
+      color:var(--muted);
+      text-align:center;
+      padding:32px 12px;
+      border:1px dashed var(--line);
+      border-radius:12px;
+    }
+    ul.guide{list-style:none}
+    ul.guide li{
+      padding:10px 0;
+      border-bottom:1px solid var(--line);
+      color:#cbd5e1;
+    }
+    ul.guide li:last-child{border-bottom:none}
+    .pill{
+      display:inline-block;
+      padding:4px 8px;
+      border-radius:999px;
+      background:rgba(56,189,248,.12);
+      color:#7dd3fc;
+      font-size:12px;
+      margin-left:6px;
+    }
+    @media (max-width: 980px){
+      .grid{grid-template-columns:1fr}
+      .meta{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📊 재무 데이터 수집 대시보드</h1>
+    <div class="sub">종목 입력 → 프롬프트 생성 → Perplexity 실행 → 결과 저장/복사</div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="collect">수집</button>
+    <button class="tab" data-tab="history">내역</button>
+    <button class="tab" data-tab="backup">백업</button>
+    <button class="tab" data-tab="guide">가이드</button>
+  </div>
+
+  <section class="panel active" id="collect">
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h2>1. 종목 입력</h2>
+          <div class="meta">
+            <div>
+              <div class="small">기업명 또는 티커</div>
+              <input id="tickerInput" type="text" placeholder="예: UMAC, AAPL, 삼성전자, 005930">
+            </div>
+            <div>
+              <div class="small">시장</div>
+              <select id="marketSelect">
+                <option value="auto">자동 판별</option>
+                <option value="us">미국</option>
+                <option value="kr">한국</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <button id="buildPromptBtn" class="btn-primary">프롬프트 생성</button>
+            <button id="copyPromptBtn" class="btn-secondary">프롬프트 복사</button>
+            <a class="btn-link btn-secondary" href="https://www.perplexity.ai" target="_blank" rel="noopener noreferrer">Perplexity 열기</a>
+          </div>
+
+          <div id="statusBox" class="status info"></div>
+        </div>
+
+        <div class="card">
+          <h2>2. Perplexity용 프롬프트</h2>
+          <textarea id="promptOutput" placeholder="여기에 자동 생성됩니다."></textarea>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h2>3. 수집 결과 붙여넣기 <span class="pill">계속 저장 가능</span></h2>
+          <div class="row">
+            <button id="copyResultBtn" class="btn-secondary">결과 복사</button>
+            <button id="saveResultBtn" class="btn-success">내역 저장</button>
+            <button id="clearResultBtn" class="btn-danger">결과 비우기</button>
+          </div>
+          <div class="row">
+            <textarea id="resultInput" placeholder="Perplexity에서 받은 복사용 데이터 블록을 여기에 붙여넣으세요."></textarea>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>4. 현재 저장 정보</h2>
+          <div class="small">현재 종목</div>
+          <input id="currentTitle" type="text" placeholder="저장 제목 자동 생성" />
+          <div class="row" style="margin-top:10px">
+            <button id="saveDraftBtn" class="btn-warn">초안 저장</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="history">
+    <div class="card">
+      <h2>저장 내역</h2>
+      <div class="row">
+        <input id="searchHistoryInput" type="text" placeholder="종목명 검색">
+        <button id="clearHistoryBtn" class="btn-danger">전체 삭제</button>
+      </div>
+      <div id="historyList" class="history-list" style="margin-top:14px"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="backup">
+    <div class="card">
+      <h2>백업 / 복원</h2>
+      <div class="row">
+        <button id="exportBtn" class="btn-secondary">JSON 내보내기</button>
+        <label class="btn-secondary" for="importFile" style="cursor:pointer">JSON 불러오기</label>
+        <input id="importFile" type="file" accept=".json" style="display:none">
+      </div>
+      <div class="small" style="margin-top:12px">브라우저를 바꾸거나 PC를 옮길 때 내역을 그대로 옮길 수 있습니다.</div>
+    </div>
+  </section>
+
+  <section class="panel" id="guide">
+    <div class="card">
+      <h2>사용법</h2>
+      <ul class="guide">
+        <li>1. 종목명 또는 티커를 입력합니다.</li>
+        <li>2. 프롬프트 생성을 눌러 맞춤형 프롬프트를 만듭니다.</li>
+        <li>3. Perplexity에 붙여넣고 실행합니다.</li>
+        <li>4. 나온 복사용 데이터 블록을 이 앱의 결과 칸에 붙여넣습니다.</li>
+        <li>5. 저장하면 내역 탭에서 계속 재사용할 수 있습니다.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const STORAGE_KEY = "fd_dashboard_history_v2";
+
+  const state = {
+    history: [],
+    currentTicker: "",
+    currentMarket: "auto"
+  };
+
+  const $ = (id) => document.getElementById(id);
+
+  function init() {
+    bindTabs();
+    bindEvents();
+    loadHistory();
+    renderHistory();
+    buildDefaultTitle();
+  }
+
+  function bindTabs() {
+    document.querySelectorAll(".tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+        document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+        tab.classList.add("active");
+        $(tab.dataset.tab).classList.add("active");
+      });
+    });
+  }
+
+  function bindEvents() {
+    $("buildPromptBtn").addEventListener("click", buildPrompt);
+    $("copyPromptBtn").addEventListener("click", () => copyFromElement("promptOutput", "프롬프트를 복사했습니다."));
+    $("copyResultBtn").addEventListener("click", () => copyFromElement("resultInput", "결과를 복사했습니다."));
+    $("saveResultBtn").addEventListener("click", saveCurrentRecord);
+    $("saveDraftBtn").addEventListener("click", saveDraftOnly);
+    $("clearResultBtn").addEventListener("click", () => $("resultInput").value = "");
+    $("clearHistoryBtn").addEventListener("click", clearHistory);
+    $("searchHistoryInput").addEventListener("input", renderHistory);
+    $("tickerInput").addEventListener("keydown", (e) => { if (e.key === "Enter") buildPrompt(); });
+    $("tickerInput").addEventListener("input", buildDefaultTitle);
+    $("marketSelect").addEventListener("change", buildDefaultTitle);
+    $("importFile").addEventListener("change", importJson);
+    $("exportBtn").addEventListener("click", exportJson);
+  }
+
+  function showStatus(message, type = "info") {
+    const box = $("statusBox");
+    box.className = `status show ${type}`;
+    box.textContent = message;
+  }
+
+  function copyFromElement(id, okMessage) {
+    const value = $(id).value.trim();
+    if (!value) {
+      showStatus("복사할 내용이 없습니다.", "error");
+      return;
+    }
+    copyText(value)
+      .then(() => showStatus(okMessage, "success"))
+      .catch(() => showStatus("복사 실패. HTTPS 배포 후 다시 시도하거나 직접 선택 복사하세요.", "error"));
+  }
+
+  async function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    if (!ok) throw new Error("copy failed");
+  }
+
+  function buildDefaultTitle() {
+    const ticker = $("tickerInput").value.trim();
+    const market = $("marketSelect").value;
+    const date = formatDate(new Date());
+    $("currentTitle").value = ticker ? `${ticker} ${market.toUpperCase()} ${date}` : `새 수집 ${date}`;
+  }
+
+  function buildPrompt() {
+    const ticker = $("tickerInput").value.trim();
+    const market = $("marketSelect").value;
+
+    if (!ticker) {
+      showStatus("종목명 또는 티커를 입력하세요.", "error");
+      return;
+    }
+
+    state.currentTicker = ticker;
+    state.currentMarket = market;
+    buildDefaultTitle();
+
+    const marketGuide = market === "kr"
+      ? "• 한국 기업 → KRX 종목코드 확인 후 검색\\n• FnGuide / 네이버금융 / DART 우선 참조"
+      : market === "us"
+      ? "• 미국 기업 → 표준 NASDAQ/NYSE 티커 사용\\n• StockAnalysis / Yahoo Finance / Macrotrends 우선 참조"
+      : "• 자동 판별 후 한국/미국 시장에 맞는 티커와 소스를 사용";
+
+    const prompt = `당신은 재무 데이터 수집 전문가입니다.
+
+${ticker}
+
+■ 작동 방식
+사용자가 기업명(또는 티커)을 입력하면, 웹 검색과 페이지 크롤링을 통해 실시간 재무 데이터를 수집하고 복사용 텍스트 블록으로 출력합니다.
+질문하지 말고 즉시 실행하세요.
+
+■ 티커 매핑
+${marketGuide}
+• 판단 불가 → 사용자에게 확인 요청
+
+■ 데이터 수집 파이프라인 (3단계)
+
+【1단계: search_web — 구조화된 재무 데이터 페이지 탐색】
+아래 쿼리를 병렬로 실행:
+쿼리1: "site:stockanalysis.com [티커] financials"
+쿼리2: "site:stockanalysis.com [티커] statistics"
+쿼리3: "[기업명] [티커] quarterly earnings revenue latest"
+
+【2단계: fetch_url — 페이지 크롤링으로 테이블 데이터 수집】
+1단계에서 확보한 URL 중 아래 페이지를 우선 크롤링:
+① stockanalysis.com/stocks/[티커]/financials/
+② stockanalysis.com/stocks/[티커]/financials/balance-sheet/
+③ stockanalysis.com/stocks/[티커]/financials/cash-flow-statement/
+④ stockanalysis.com/stocks/[티커]/statistics/
+
+※ 대체 소스:
+- macrotrends.net/stocks/charts/[티커]/[기업명]/revenue
+- finance.yahoo.com/quote/[티커]/
+- 한국 주식은 comp.fnguide.com / finance.naver.com / DART
+
+【3단계: 데이터 정리 및 출력】
+반드시 크롤링 결과에 있는 숫자만 사용. 추정/보간 금지.
+항목별 실패 시 "❌ 미확인" 표기.
+데이터 시점이 다르면 각 항목에 기준일 명시.
+
+===== 복사용 데이터 블록 START =====
+🏢 기업: [기업명] | 티커: [티커] ([거래소])
+📅 수집일: [YYYY-MM-DD HH:MM KST]
+📊 출처: [실제 크롤링한 소스 사이트명]
+
+[A] 가격/시총
+• 주가: [값] [통화] ([기준일])
+• 시가총액: [값]
+• 기업가치(EV): [값]
+• 52주 고/저: [값] / [값]
+• 발행주식수: [값] | 유동주식(Float): [값]
+• Beta: [값]
+
+[B] 분기 실적 (최근 4분기)
+| 분기 | 매출 | 영업이익 | 순이익 | EPS |
+
+[C] 연간 재무제표 (최근 3개년)
+| 항목 | FY [년도] | FY [년도] | FY [년도] |
+| 매출 | | | |
+| 매출성장률 | | | |
+| 매출총이익 | | | |
+| 영업이익 | | | |
+| EBITDA | | | |
+| 순이익 | | | |
+| EPS | | | |
+| 총자산 | | | |
+| 총부채 | | | |
+| 자본 | | | |
+| OCF | | | |
+| Capex | | | |
+| FCF | | | |
+
+• ROE/ROA/ROIC/영업이익률/순이익률 (최근 연도 + TTM)
+
+[D] 밸류에이션
+• Trailing P/E: [값] | Forward P/E: [값]
+• P/S: [값] | P/B: [값]
+• EV/EBITDA: [값] | EV/Sales: [값]
+• Earnings Yield: [값] | FCF Yield: [값]
+
+[E] 컨센서스
+• 목표가: mean [값] / median [값] / high [값] / low [값] ([명수]명)
+• 추천: [등급] | 분포: Buy [X] / Hold [X] / Sell [X]
+
+[F] 주요 주주
+• 기관 보유: [값]% | 내부자: [값]%
+• 공매도: [값]주 ([값]%)
+
+[G] 배당
+• 배당수익률: [값] | 배당성향: [값] | 바이백 수익률: [값]
+
+[가이던스] (해당 시)
+• (경영진 제시 가이던스)
+
+[기타 지표]
+• Altman Z / Piotroski F / 유동비율 / D·E Ratio 등
+
+[미확인 항목]
+• (fetch 실패 항목 나열 + 사유)
+===== 복사용 데이터 블록 END =====`;
+
+    $("promptOutput").value = prompt;
+    showStatus("프롬프트를 생성했습니다. 복사 후 Perplexity에 붙여넣으세요.", "success");
+  }
+
+  function saveDraftOnly() {
+    const title = $("currentTitle").value.trim();
+    const ticker = $("tickerInput").value.trim() || "NO-TICKER";
+    const prompt = $("promptOutput").value.trim();
+    const result = $("resultInput").value.trim();
+
+    if (!prompt && !result) {
+      showStatus("저장할 프롬프트나 결과가 없습니다.", "error");
+      return;
+    }
+
+    const item = {
+      id: cryptoRandom(),
+      title,
+      ticker,
+      market: $("marketSelect").value,
+      prompt,
+      result,
+      createdAt: new Date().toISOString()
+    };
+
+    state.history.unshift(item);
+    persist();
+    renderHistory();
+    showStatus("초안을 저장했습니다.", "success");
+  }
+
+  function saveCurrentRecord() {
+    const title = $("currentTitle").value.trim();
+    const ticker = $("tickerInput").value.trim() || state.currentTicker || "NO-TICKER";
+    const prompt = $("promptOutput").value.trim();
+    const result = $("resultInput").value.trim();
+
+    if (!result) {
+      showStatus("저장할 결과가 없습니다.", "error");
+      return;
+    }
+
+    const item = {
+      id: cryptoRandom(),
+      title,
+      ticker,
+      market: $("marketSelect").value,
+      prompt,
+      result,
+      createdAt: new Date().toISOString()
+    };
+
+    state.history.unshift(item);
+    persist();
+    renderHistory();
+    showStatus("결과를 저장했습니다.", "success");
+  }
+
+  function loadHistory() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      state.history = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      state.history = [];
+    }
+  }
+
+  function persist() {
+    state.history = state.history.slice(0, 300);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.history));
+  }
+
+  function renderHistory() {
+    const q = $("searchHistoryInput").value.trim().toLowerCase();
+    const list = state.history.filter(item => {
+      const text = `${item.title} ${item.ticker} ${item.result}`.toLowerCase();
+      return !q || text.includes(q);
+    });
+
+    const el = $("historyList");
+
+    if (!list.length) {
+      el.innerHTML = '<div class="empty">저장된 내역이 없습니다.</div>';
+      return;
+    }
+
+    el.innerHTML = list.map(item => `
+      <div class="history-item" data-id="${item.id}">
+        <div class="history-top">
+          <div class="history-name">${escapeHtml(item.title || item.ticker)}</div>
+          <div class="history-date">${formatDateTime(item.createdAt)}</div>
+        </div>
+        <div class="history-preview">${escapeHtml((item.result || item.prompt || "").replace(/\\n/g, " ").slice(0, 180))}</div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn-secondary btn-load" data-id="${item.id}">불러오기</button>
+          <button class="btn-secondary btn-copy" data-id="${item.id}">결과 복사</button>
+          <button class="btn-danger btn-delete" data-id="${item.id}">삭제</button>
+        </div>
+      </div>
+    `).join("");
+
+    el.querySelectorAll(".btn-load").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        loadRecord(btn.dataset.id);
+      });
+    });
+
+    el.querySelectorAll(".btn-copy").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const item = state.history.find(x => x.id === btn.dataset.id);
+        if (!item || !item.result) {
+          showStatus("복사할 결과가 없습니다.", "error");
+          return;
+        }
+        try {
+          await copyText(item.result);
+          showStatus("저장된 결과를 복사했습니다.", "success");
+        } catch {
+          showStatus("복사 실패.", "error");
+        }
+      });
+    });
+
+    el.querySelectorAll(".btn-delete").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteRecord(btn.dataset.id);
+      });
+    });
+
+    el.querySelectorAll(".history-item").forEach(card => {
+      card.addEventListener("click", () => loadRecord(card.dataset.id));
+    });
+  }
+
+  function loadRecord(id) {
+    const item = state.history.find(x => x.id === id);
+    if (!item) return;
+    $("tickerInput").value = item.ticker || "";
+    $("marketSelect").value = item.market || "auto";
+    $("promptOutput").value = item.prompt || "";
+    $("resultInput").value = item.result || "";
+    $("currentTitle").value = item.title || "";
+    document.querySelector('.tab[data-tab="collect"]').click();
+    showStatus("저장된 내역을 불러왔습니다.", "success");
+  }
+
+  function deleteRecord(id) {
+    state.history = state.history.filter(x => x.id !== id);
+    persist();
+    renderHistory();
+    showStatus("삭제했습니다.", "success");
+  }
+
+  function clearHistory() {
+    if (!confirm("모든 내역을 삭제하시겠습니까?")) return;
+    state.history = [];
+    localStorage.removeItem(STORAGE_KEY);
+    renderHistory();
+    showStatus("전체 삭제 완료.", "warn");
+  }
+
+  function exportJson() {
+    const blob = new Blob([JSON.stringify(state.history, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `financial-dashboard-backup-${formatDate(new Date())}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showStatus("백업 파일을 내보냈습니다.", "success");
+  }
+
+  function importJson(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        if (!Array.isArray(data)) throw new Error("invalid");
+        state.history = data.concat(state.history).slice(0, 300);
+        persist();
+        renderHistory();
+        showStatus("백업 파일을 불러왔습니다.", "success");
+      } catch {
+        showStatus("JSON 형식이 올바르지 않습니다.", "error");
+      } finally {
+        e.target.value = "";
+      }
+    };
+    reader.readAsText(file, "utf-8");
+  }
+
+  function formatDate(d) {
+    const x = new Date(d);
+    return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;
+  }
+
+  function formatDateTime(d) {
+    const x = new Date(d);
+    return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")} ${String(x.getHours()).padStart(2,"0")}:${String(x.getMinutes()).padStart(2,"0")}`;
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function cryptoRandom() {
+    return (crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
