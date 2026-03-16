@@ -314,56 +314,54 @@
     $("exportBtn").addEventListener("click", exportJson);
   }
 
-  function showStatus(message, type = "info") {
-    const box = $("statusBox");
-    box.className = `status show ${type}`;
+  function showStatus(message, type) {
+    type = type || "info";
+    var box = $("statusBox");
+    box.className = "status show " + type;
     box.textContent = message;
   }
 
   function copyFromElement(id, okMessage) {
-    const value = $(id).value.trim();
+    var value = $(id).value.trim();
     if (!value) {
       showStatus("복사할 내용이 없습니다.", "error");
       return;
     }
     copyText(value)
-      .then(() => showStatus(okMessage, "success"))
-      .catch(() => showStatus("복사 실패. HTTPS 배포 후 다시 시도하거나 직접 선택 복사하세요.", "error"));
+      .then(function() { showStatus(okMessage, "success"); })
+      .catch(function() { showStatus("복사 실패. 직접 선택 복사하세요.", "error"); });
   }
 
-  async function copyText(text) {
+  function copyText(text) {
     if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-      return;
+      return navigator.clipboard.writeText(text);
     }
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.left = "-9999px";
-    ta.style.top = "0";
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    let ok = false;
-    try {
-      ok = document.execCommand("copy");
-    } catch (e) {
-      ok = false;
-    }
-    document.body.removeChild(ta);
-    if (!ok) throw new Error("copy failed");
+    return new Promise(function(resolve, reject) {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch(e) { ok = false; }
+      document.body.removeChild(ta);
+      if (ok) resolve(); else reject(new Error("copy failed"));
+    });
   }
 
   function buildDefaultTitle() {
-    const ticker = $("tickerInput").value.trim();
-    const market = $("marketSelect").value;
-    const date = formatDate(new Date());
-    $("currentTitle").value = ticker ? `${ticker} ${market.toUpperCase()} ${date}` : `새 수집 ${date}`;
+    var ticker = $("tickerInput").value.trim();
+    var market = $("marketSelect").value;
+    var date = formatDate(new Date());
+    $("currentTitle").value = ticker ? ticker + " " + market.toUpperCase() + " " + date : "새 수집 " + date;
   }
 
   function buildPrompt() {
-    const ticker = $("tickerInput").value.trim();
-    const market = $("marketSelect").value;
+    var ticker = $("tickerInput").value.trim();
+    var market = $("marketSelect").value;
 
     if (!ticker) {
       showStatus("종목명 또는 티커를 입력하세요.", "error");
@@ -374,7 +372,7 @@
     state.currentMarket = market;
     buildDefaultTitle();
 
-    let prompt = "";
+    var prompt = "";
 
     if (market === "kr") {
       prompt = buildKoreanPrompt(ticker);
@@ -385,378 +383,132 @@
     }
 
     $("promptOutput").value = prompt;
-    showStatus("수정된 프롬프트를 생성했습니다. quarterly / forecast / ratings / ratios 규칙이 반영되었습니다.", "success");
+    showStatus("프롬프트를 생성했습니다.", "success");
   }
 
   function buildAutoPrompt(ticker) {
-    return `당신은 재무 데이터 수집 전문가입니다.
-
-${ticker}
-
-■ 작동 방식
-사용자가 기업명(또는 티커)을 입력하면, 웹 검색과 페이지 크롤링을 통해 실시간 재무 데이터를 수집하고 복사용 텍스트 블록으로 출력합니다.
-질문하지 말고 즉시 실행하세요.
-
-■ 티커 매핑
-• 한국 기업이면 KRX 종목코드를 먼저 확인하고 한국 주식용 소스를 사용
-• 미국 기업이면 표준 NASDAQ/NYSE 티커를 확인하고 미국 주식용 소스를 사용
-• 판단 불가하면 사용자에게 확인 요청
-
-■ 공통 규칙
-• 숫자는 반드시 크롤링 결과에 있는 값만 사용
-• 추정, 보간, 역산 금지
-• 항목별 실패 시 "❌ 미확인" 표기
-• 데이터 시점이 다르면 각 항목에 기준일 명시
-
-■ 미국 주식 처리 규칙
-【1단계: search_web】
-쿼리1: "site:stockanalysis.com [티커] financials"
-쿼리2: "site:stockanalysis.com [티커] forecast"
-쿼리3: "site:stockanalysis.com [티커] statistics"
-
-【2단계: fetch_url】
-아래 URL을 우선 크롤링:
-1) stockanalysis.com/stocks/[티커]/financials/?p=quarterly
-2) stockanalysis.com/stocks/[티커]/financials/
-3) stockanalysis.com/stocks/[티커]/financials/balance-sheet/
-4) stockanalysis.com/stocks/[티커]/financials/cash-flow-statement/
-5) stockanalysis.com/stocks/[티커]/statistics/
-6) stockanalysis.com/stocks/[티커]/forecast/
-7) stockanalysis.com/stocks/[티커]/ratings/
-8) stockanalysis.com/stocks/[티커]/financials/ratios/
-
-미국 주식 추출 규칙:
-• [B] 분기 실적: financials/?p=quarterly 에서 Fiscal Quarter 최근 4개 열 기준
-• [B] 항목명: Revenue, Operating Income, Net Income, EPS (Diluted)
-• [C] 영업이익률/순이익률: Operating Margin, Profit Margin
-• ROE/ROA/ROIC: financials/ratios/ 또는 statistics
-• [E] 목표가: forecast 의 Low / Average / Median / High / analyst count
-• [E] 추천 분포: forecast Recommendation Trends 최신 월, 없으면 ratings 페이지 사용
-• [A][D][F][G]: statistics 우선 사용
-
-대체 소스:
-- finance.yahoo.com/quote/[티커]/
-- macrotrends.net/stocks/charts/[티커]/[기업명]/revenue
-
-■ 한국 주식 처리 규칙
-【1단계: search_web】
-쿼리1: "[기업명] [종목코드] 재무제표 매출 영업이익"
-쿼리2: "[기업명] 실적 분기 컨센서스"
-쿼리3: "site:comp.fnguide.com [종목코드]"
-
-【2단계: fetch_url】
-아래 URL을 우선 크롤링:
-1) comp.fnguide.com 기업 메인/재무/컨센서스 관련 페이지
-2) finance.naver.com/item/main.naver?code=[종목코드]
-3) DART 공시 관련 페이지
-
-한국 주식 추출 규칙:
-• 최근 4분기: 매출, 영업이익, 순이익, EPS
-• 최근 3개년: IS / BS / CF
-• 목표가, 추천등급, 배당, 주요 주주, 공매도, 컨센서스 우선 추출
-• 한국 주식은 FnGuide / 네이버금융 / DART 기준으로 수집
-• 재무제표 미수집 시 "⚠️ 한국 주식은 FnGuide/네이버금융/DART 참조 필요" 표기
-
-■ 출력 형식
-===== 복사용 데이터 블록 START =====
-🏢 기업: [기업명] | 티커: [티커] ([거래소])
-📅 수집일: [YYYY-MM-DD HH:MM KST]
-📊 출처: [실제 크롤링한 소스 사이트명]
-
-[A] 가격/시총
-• 주가: [값] [통화] ([기준일])
-• 시가총액: [값]
-• 기업가치(EV): [값]
-• 52주 고/저: [값] / [값]
-• 발행주식수: [값] | 유동주식(Float): [값]
-• Beta: [값]
-
-[B] 분기 실적 (최근 4분기)
-| 분기 | 매출 | 영업이익 | 순이익 | EPS |
-(최근 4분기 개별 수치 반드시 표기)
-
-[C] 연간 재무제표 (최근 3개년)
-| 항목 | FY [년도] | FY [년도] | FY [년도] |
-| 매출 | | | |
-| 매출성장률 | | | |
-| 매출총이익 | | | |
-| 영업이익 | | | |
-| EBITDA | | | |
-| 순이익 | | | |
-| EPS | | | |
-| 총자산 | | | |
-| 총부채 | | | |
-| 자본 | | | |
-| OCF | | | |
-| Capex | | | |
-| FCF | | | |
-
-• ROE/ROA/ROIC/영업이익률/순이익률 (최근 연도 + TTM)
-
-[D] 밸류에이션
-• Trailing P/E: [값] | Forward P/E: [값]
-• P/S: [값] | P/B: [값]
-• EV/EBITDA: [값] | EV/Sales: [값]
-• Earnings Yield: [값] | FCF Yield: [값]
-
-[E] 컨센서스
-• 목표가: mean [값] / median [값] / high [값] / low [값] ([명수]명)
-• 추천: [등급] | 분포: Buy [X] / Hold [X] / Sell [X]
-
-[F] 주요 주주
-• 기관 보유: [값]% | 내부자: [값]%
-• 공매도: [값]주 ([값]%)
-
-[G] 배당
-• 배당수익률: [값] | 배당성향: [값] | 바이백 수익률: [값]
-
-[가이던스] (해당 시)
-• (경영진 제시 가이던스)
-
-[기타 지표]
-• Altman Z / Piotroski F / 유동비율 / D·E Ratio 등
-
-[미확인 항목]
-• (fetch 실패 항목 나열 + 사유)
-===== 복사용 데이터 블록 END =====`;
+    return "당신은 재무 데이터 수집 전문가입니다.\n\n" + ticker + "\n\n" +
+"■ 작동 방식\n" +
+"사용자가 기업명(또는 티커)을 입력하면, 웹 검색과 페이지 크롤링을 통해 실시간 재무 데이터를 수집하고 복사용 텍스트 블록으로 출력합니다.\n" +
+"질문하지 말고 즉시 실행하세요.\n\n" +
+"■ 티커 매핑\n" +
+"• 한국 기업이면 KRX 종목코드를 먼저 확인하고 한국 주식용 소스를 사용\n" +
+"• 미국 기업이면 표준 NASDAQ/NYSE 티커를 확인하고 미국 주식용 소스를 사용\n" +
+"• 판단 불가하면 사용자에게 확인 요청\n\n" +
+"■ 공통 규칙\n" +
+"• 숫자는 반드시 크롤링 결과에 있는 값만 사용\n" +
+"• 추정, 보간, 역산 금지\n" +
+"• 항목별 실패 시 \"❌ 미확인\" 표기\n" +
+"• 데이터 시점이 다르면 각 항목에 기준일 명시\n\n" +
+"■ 미국 주식 처리 규칙\n" +
+"【1단계: search_web】\n" +
+"쿼리1: \"site:stockanalysis.com " + ticker + " financials\"\n" +
+"쿼리2: \"site:stockanalysis.com " + ticker + " forecast\"\n" +
+"쿼리3: \"site:stockanalysis.com " + ticker + " statistics\"\n\n" +
+"【2단계: fetch_url】\n" +
+"아래 URL을 우선 크롤링:\n" +
+"1) stockanalysis.com/stocks/" + ticker.toLowerCase() + "/financials/?p=quarterly\n" +
+"2) stockanalysis.com/stocks/" + ticker.toLowerCase() + "/financials/\n" +
+"3) stockanalysis.com/stocks/" + ticker.toLowerCase() + "/financials/balance-sheet/\n" +
+"4) stockanalysis.com/stocks/" + ticker.toLowerCase() + "/financials/cash-flow-statement/\n" +
+"5) stockanalysis.com/stocks/" + ticker.toLowerCase() + "/statistics/\n" +
+"6) stockanalysis.com/stocks/" + ticker.toLowerCase() + "/forecast/\n" +
+"7) stockanalysis.com/stocks/" + ticker.toLowerCase() + "/ratings/\n" +
+"8) stockanalysis.com/stocks/" + ticker.toLowerCase() + "/financials/ratios/\n\n" +
+"미국 주식 추출 규칙:\n" +
+"• [B] 분기 실적: financials/?p=quarterly 에서 최근 4분기\n" +
+"• [B] 항목명: Revenue, Operating Income, Net Income, EPS (Diluted)\n" +
+"• ROE/ROA/ROIC: financials/ratios/ 또는 statistics\n" +
+"• [E] 목표가: forecast 의 Low / Average / Median / High / analyst count\n" +
+"• [E] 추천 분포: forecast Recommendation Trends 최신 월, 없으면 ratings 사용\n" +
+"• [A][D][F][G]: statistics 우선 사용\n\n" +
+"■ 한국 주식 처리 규칙\n" +
+"【1단계: search_web】\n" +
+"쿼리1: \"" + ticker + " 재무제표 매출 영업이익\"\n" +
+"쿼리2: \"" + ticker + " 실적 분기 컨센서스\"\n" +
+"쿼리3: \"site:comp.fnguide.com " + ticker + "\"\n\n" +
+"【2단계: fetch_url】\n" +
+"1) comp.fnguide.com 기업 메인/재무/컨센서스\n" +
+"2) finance.naver.com/item/main.naver?code=[종목코드]\n" +
+"3) DART 공시 관련 페이지\n\n" +
+"■ 출력 형식\n" +
+"===== 복사용 데이터 블록 START =====\n" +
+"🏢 기업: [기업명] | 티커: [티커] ([거래소])\n" +
+"📅 수집일: [YYYY-MM-DD HH:MM KST]\n" +
+"📊 출처: [실제 크롤링한 소스 사이트명]\n\n" +
+"[A] 가격/시총\n" +
+"• 주가: [값] [통화] ([기준일])\n" +
+"• 시가총액: [값]\n" +
+"• 기업가치(EV): [값]\n" +
+"• 52주 고/저: [값] / [값]\n" +
+"• 발행주식수: [값] | 유동주식(Float): [값]\n" +
+"• Beta: [값]\n\n" +
+"[B] 분기 실적 (최근 4분기)\n" +
+"| 분기 | 매출 | 영업이익 | 순이익 | EPS |\n\n" +
+"[C] 연간 재무제표 (최근 3개년)\n" +
+"| 항목 | FY [년도] | FY [년도] | FY [년도] |\n" +
+"| 매출 | | | |\n" +
+"| 매출성장률 | | | |\n" +
+"| 매출총이익 | | | |\n" +
+"| 영업이익 | | | |\n" +
+"| EBITDA | | | |\n" +
+"| 순이익 | | | |\n" +
+"| EPS | | | |\n" +
+"| 총자산 | | | |\n" +
+"| 총부채 | | | |\n" +
+"| 자본 | | | |\n" +
+"| OCF | | | |\n" +
+"| Capex | | | |\n" +
+"| FCF | | | |\n\n" +
+"• ROE/ROA/ROIC/영업이익률/순이익률 (최근 연도 + TTM)\n\n" +
+"[D] 밸류에이션\n" +
+"• Trailing P/E: [값] | Forward P/E: [값]\n" +
+"• P/S: [값] | P/B: [값]\n" +
+"• EV/EBITDA: [값] | EV/Sales: [값]\n" +
+"• Earnings Yield: [값] | FCF Yield: [값]\n\n" +
+"[E] 컨센서스\n" +
+"• 목표가: mean [값] / median [값] / high [값] / low [값] ([명수]명)\n" +
+"• 추천: [등급] | 분포: Buy [X] / Hold [X] / Sell [X]\n\n" +
+"[F] 주요 주주\n" +
+"• 기관 보유: [값]% | 내부자: [값]%\n" +
+"• 공매도: [값]주 ([값]%)\n\n" +
+"[G] 배당\n" +
+"• 배당수익률: [값] | 배당성향: [값] | 바이백 수익률: [값]\n\n" +
+"[가이던스] (해당 시)\n" +
+"• (경영진 제시 가이던스)\n\n" +
+"[기타 지표]\n" +
+"• Altman Z / Piotroski F / 유동비율 / D·E Ratio 등\n\n" +
+"[미확인 항목]\n" +
+"• (fetch 실패 항목 나열 + 사유)\n" +
+"===== 복사용 데이터 블록 END =====";
   }
 
   function buildUsPrompt(ticker) {
-    return `당신은 재무 데이터 수집 전문가입니다.
-
-${ticker}
-
-■ 작동 방식
-사용자가 기업명(또는 티커)을 입력하면, 웹 검색과 페이지 크롤링을 통해 실시간 재무 데이터를 수집하고 복사용 텍스트 블록으로 출력합니다.
-질문하지 말고 즉시 실행하세요.
-
-■ 티커 매핑
-• 미국 기업 → 표준 NASDAQ/NYSE 티커 사용
-• 판단 불가 → 사용자에게 확인 요청
-
-■ 데이터 수집 파이프라인 (3단계)
-
-【1단계: search_web — 구조화된 재무 데이터 페이지 탐색】
-아래 쿼리를 병렬로 실행:
-쿼리1: "site:stockanalysis.com [티커] financials"
-쿼리2: "site:stockanalysis.com [티커] forecast"
-쿼리3: "site:stockanalysis.com [티커] statistics"
-
-【2단계: fetch_url — 페이지 크롤링으로 테이블 데이터 수집】
-아래 URL을 우선 크롤링:
-① stockanalysis.com/stocks/[티커]/financials/?p=quarterly → [B] 최근 4분기
-② stockanalysis.com/stocks/[티커]/financials/ → [C] 연간 IS
-③ stockanalysis.com/stocks/[티커]/financials/balance-sheet/ → [C] BS
-④ stockanalysis.com/stocks/[티커]/financials/cash-flow-statement/ → [C] CF
-⑤ stockanalysis.com/stocks/[티커]/statistics/ → [A][D][F][G]
-⑥ stockanalysis.com/stocks/[티커]/forecast/ → [E] 목표가 / analyst count / recommendation trends
-⑦ stockanalysis.com/stocks/[티커]/ratings/ → [E] 추천 분포 보강
-⑧ stockanalysis.com/stocks/[티커]/financials/ratios/ → ROE / ROA / ROIC / 수익성 보강
-
-대체 소스:
-- finance.yahoo.com/quote/[티커]/
-- macrotrends.net/stocks/charts/[티커]/[기업명]/revenue
-
-【3단계: 데이터 정리 및 출력】
-반드시 크롤링 결과에 있는 숫자만 사용. 추정/보간 금지.
-항목별 실패 시 "❌ 미확인" 표기.
-데이터 시점이 다르면 각 항목에 기준일 명시.
-
-미국 주식 추출 규칙:
-• [B] 분기 실적은 financials/?p=quarterly 에서 Fiscal Quarter 최근 4개 열을 사용
-• [B] 각 분기 항목은 Revenue, Operating Income, Net Income, EPS (Diluted) 행에서 추출
-• [C] 영업이익률과 순이익률은 Operating Margin, Profit Margin 행에서 우선 추출
-• ROE / ROA / ROIC 는 financials/ratios/ 또는 statistics 에서 우선 추출
-• [E] 목표가는 forecast 페이지의 Low / Average / Median / High / analyst count 사용
-• [E] 추천 분포는 forecast 페이지의 Recommendation Trends 최신 월 기준, 없으면 ratings 페이지 사용
-• [A][D][F][G]는 statistics 페이지 값 우선 사용
-• statistics / forecast / ratings 에 값이 없으면 ❌ 미확인
-• 숫자 형식은 원문 그대로 사용
-
-■ 출력 형식
-===== 복사용 데이터 블록 START =====
-🏢 기업: [기업명] | 티커: [티커] ([거래소])
-📅 수집일: [YYYY-MM-DD HH:MM KST]
-📊 출처: [실제 크롤링한 소스 사이트명]
-
-[A] 가격/시총
-• 주가: [값] [통화] ([기준일])
-• 시가총액: [값]
-• 기업가치(EV): [값]
-• 52주 고/저: [값] / [값]
-• 발행주식수: [값] | 유동주식(Float): [값]
-• Beta: [값]
-
-[B] 분기 실적 (최근 4분기)
-| 분기 | 매출 | 영업이익 | 순이익 | EPS |
-(반드시 최근 4분기 각각 개별 수치 기입)
-
-[C] 연간 재무제표 (최근 3개년)
-| 항목 | FY [년도] | FY [년도] | FY [년도] |
-| 매출 | | | |
-| 매출성장률 | | | |
-| 매출총이익 | | | |
-| 영업이익 | | | |
-| EBITDA | | | |
-| 순이익 | | | |
-| EPS | | | |
-| 총자산 | | | |
-| 총부채 | | | |
-| 자본 | | | |
-| OCF | | | |
-| Capex | | | |
-| FCF | | | |
-
-• ROE/ROA/ROIC/영업이익률/순이익률 (최근 연도 + TTM)
-
-[D] 밸류에이션
-• Trailing P/E: [값] | Forward P/E: [값]
-• P/S: [값] | P/B: [값]
-• EV/EBITDA: [값] | EV/Sales: [값]
-• Earnings Yield: [값] | FCF Yield: [값]
-
-[E] 컨센서스
-• 목표가: mean [값] / median [값] / high [값] / low [값] ([명수]명)
-• 추천: [등급] | 분포: Buy [X] / Hold [X] / Sell [X]
-
-[F] 주요 주주
-• 기관 보유: [값]% | 내부자: [값]%
-• 공매도: [값]주 ([값]%)
-
-[G] 배당
-• 배당수익률: [값] | 배당성향: [값] | 바이백 수익률: [값]
-
-[가이던스] (해당 시)
-• (경영진 제시 가이던스)
-
-[기타 지표]
-• Altman Z / Piotroski F / 유동비율 / D·E Ratio 등
-
-[미확인 항목]
-• (fetch 실패 항목 나열 + 사유)
-===== 복사용 데이터 블록 END =====`;
+    return buildAutoPrompt(ticker);
   }
 
   function buildKoreanPrompt(ticker) {
-    return `당신은 재무 데이터 수집 전문가입니다.
-
-${ticker}
-
-■ 작동 방식
-사용자가 기업명(또는 티커)을 입력하면, 웹 검색과 페이지 크롤링을 통해 실시간 재무 데이터를 수집하고 복사용 텍스트 블록으로 출력합니다.
-질문하지 말고 즉시 실행하세요.
-
-■ 티커 매핑
-• 한국 기업 → KRX 종목코드 확인 후 검색
-• 판단 불가 → 사용자에게 확인 요청
-
-■ 데이터 수집 파이프라인 (3단계)
-
-【1단계: search_web — 구조화된 재무 데이터 페이지 탐색】
-아래 쿼리를 병렬로 실행:
-쿼리1: "[기업명] [종목코드] 재무제표 매출 영업이익"
-쿼리2: "[기업명] 실적 분기 컨센서스"
-쿼리3: "site:comp.fnguide.com [종목코드]"
-
-【2단계: fetch_url — 페이지 크롤링으로 테이블 데이터 수집】
-아래 URL을 우선 크롤링:
-① comp.fnguide.com 기업 메인/재무/컨센서스 관련 페이지
-② finance.naver.com/item/main.naver?code=[종목코드]
-③ DART 공시 관련 페이지
-
-한국 주식 추출 규칙:
-• 최근 4분기: 매출, 영업이익, 순이익, EPS
-• 최근 3개년: IS / BS / CF
-• 목표가, 추천등급, 배당, 주요 주주, 공매도, 컨센서스 우선 추출
-• 한국 주식은 FnGuide / 네이버금융 / DART 기준으로 수집
-• 재무제표 미수집 시 "⚠️ 한국 주식은 FnGuide/네이버금융/DART 참조 필요" 표기
-
-【3단계: 데이터 정리 및 출력】
-반드시 크롤링 결과에 있는 숫자만 사용. 추정/보간 금지.
-항목별 실패 시 "❌ 미확인" 표기.
-데이터 시점이 다르면 각 항목에 기준일 명시.
-
-■ 출력 형식
-===== 복사용 데이터 블록 START =====
-🏢 기업: [기업명] | 티커: [티커] ([거래소])
-📅 수집일: [YYYY-MM-DD HH:MM KST]
-📊 출처: [실제 크롤링한 소스 사이트명]
-
-[A] 가격/시총
-• 주가: [값] [통화] ([기준일])
-• 시가총액: [값]
-• 기업가치(EV): [값]
-• 52주 고/저: [값] / [값]
-• 발행주식수: [값] | 유동주식(Float): [값]
-• Beta: [값]
-
-[B] 분기 실적 (최근 4분기)
-| 분기 | 매출 | 영업이익 | 순이익 | EPS |
-
-[C] 연간 재무제표 (최근 3개년)
-| 항목 | FY [년도] | FY [년도] | FY [년도] |
-| 매출 | | | |
-| 매출성장률 | | | |
-| 매출총이익 | | | |
-| 영업이익 | | | |
-| EBITDA | | | |
-| 순이익 | | | |
-| EPS | | | |
-| 총자산 | | | |
-| 총부채 | | | |
-| 자본 | | | |
-| OCF | | | |
-| Capex | | | |
-| FCF | | | |
-
-• ROE/ROA/ROIC/영업이익률/순이익률 (최근 연도 + TTM)
-
-[D] 밸류에이션
-• Trailing P/E: [값] | Forward P/E: [값]
-• P/S: [값] | P/B: [값]
-• EV/EBITDA: [값] | EV/Sales: [값]
-• Earnings Yield: [값] | FCF Yield: [값]
-
-[E] 컨센서스
-• 목표가: mean [값] / median [값] / high [값] / low [값] ([명수]명)
-• 추천: [등급] | 분포: Buy [X] / Hold [X] / Sell [X]
-
-[F] 주요 주주
-• 기관 보유: [값]% | 내부자: [값]%
-• 공매도: [값]주 ([값]%)
-
-[G] 배당
-• 배당수익률: [값] | 배당성향: [값] | 바이백 수익률: [값]
-
-[가이던스] (해당 시)
-• (경영진 제시 가이던스)
-
-[기타 지표]
-• Altman Z / Piotroski F / 유동비율 / D·E Ratio 등
-
-[미확인 항목]
-• (fetch 실패 항목 나열 + 사유)
-===== 복사용 데이터 블록 END =====`;
+    return buildAutoPrompt(ticker);
   }
 
   function saveDraftOnly() {
-    const title = $("currentTitle").value.trim();
-    const ticker = $("tickerInput").value.trim() || "NO-TICKER";
-    const prompt = $("promptOutput").value.trim();
-    const result = $("resultInput").value.trim();
+    var title = $("currentTitle").value.trim();
+    var ticker = $("tickerInput").value.trim() || "NO-TICKER";
+    var prompt = $("promptOutput").value.trim();
+    var result = $("resultInput").value.trim();
 
     if (!prompt && !result) {
       showStatus("저장할 프롬프트나 결과가 없습니다.", "error");
       return;
     }
 
-    const item = {
+    var item = {
       id: cryptoRandom(),
-      title,
-      ticker,
+      title: title,
+      ticker: ticker,
       market: $("marketSelect").value,
-      prompt,
-      result,
+      prompt: prompt,
+      result: result,
       createdAt: new Date().toISOString()
     };
 
@@ -767,23 +519,23 @@ ${ticker}
   }
 
   function saveCurrentRecord() {
-    const title = $("currentTitle").value.trim();
-    const ticker = $("tickerInput").value.trim() || state.currentTicker || "NO-TICKER";
-    const prompt = $("promptOutput").value.trim();
-    const result = $("resultInput").value.trim();
+    var title = $("currentTitle").value.trim();
+    var ticker = $("tickerInput").value.trim() || state.currentTicker || "NO-TICKER";
+    var prompt = $("promptOutput").value.trim();
+    var result = $("resultInput").value.trim();
 
     if (!result) {
       showStatus("저장할 결과가 없습니다.", "error");
       return;
     }
 
-    const item = {
+    var item = {
       id: cryptoRandom(),
-      title,
-      ticker,
+      title: title,
+      ticker: ticker,
       market: $("marketSelect").value,
-      prompt,
-      result,
+      prompt: prompt,
+      result: result,
       createdAt: new Date().toISOString()
     };
 
@@ -795,7 +547,7 @@ ${ticker}
 
   function loadHistory() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      var raw = localStorage.getItem(STORAGE_KEY);
       state.history = raw ? JSON.parse(raw) : [];
     } catch (e) {
       state.history = [];
@@ -808,73 +560,69 @@ ${ticker}
   }
 
   function renderHistory() {
-    const q = $("searchHistoryInput").value.trim().toLowerCase();
-    const list = state.history.filter(item => {
-      const text = `${item.title} ${item.ticker} ${item.result}`.toLowerCase();
-      return !q || text.includes(q);
+    var q = $("searchHistoryInput").value.trim().toLowerCase();
+    var list = state.history.filter(function(item) {
+      var text = (item.title + " " + item.ticker + " " + item.result).toLowerCase();
+      return !q || text.indexOf(q) >= 0;
     });
 
-    const el = $("historyList");
+    var el = $("historyList");
 
     if (!list.length) {
       el.innerHTML = '<div class="empty">저장된 내역이 없습니다.</div>';
       return;
     }
 
-    el.innerHTML = list.map(item => `
-      <div class="history-item" data-id="${item.id}">
-        <div class="history-top">
-          <div class="history-name">${escapeHtml(item.title || item.ticker)}</div>
-          <div class="history-date">${formatDateTime(item.createdAt)}</div>
-        </div>
-        <div class="history-preview">${escapeHtml((item.result || item.prompt || "").replace(/
-/g, " ").slice(0, 180))}</div>
-        <div class="row" style="margin-top:10px">
-          <button class="btn-secondary btn-load" data-id="${item.id}">불러오기</button>
-          <button class="btn-secondary btn-copy" data-id="${item.id}">결과 복사</button>
-          <button class="btn-danger btn-delete" data-id="${item.id}">삭제</button>
-        </div>
-      </div>
-    `).join("");
+    el.innerHTML = list.map(function(item) {
+      return '<div class="history-item" data-id="' + item.id + '">' +
+        '<div class="history-top">' +
+          '<div class="history-name">' + escapeHtml(item.title || item.ticker) + '</div>' +
+          '<div class="history-date">' + formatDateTime(item.createdAt) + '</div>' +
+        '</div>' +
+        '<div class="history-preview">' + escapeHtml((item.result || item.prompt || "").replace(/\n/g, " ").slice(0, 180)) + '</div>' +
+        '<div class="row" style="margin-top:10px">' +
+          '<button class="btn-secondary btn-load" data-id="' + item.id + '">불러오기</button>' +
+          '<button class="btn-secondary btn-copy" data-id="' + item.id + '">결과 복사</button>' +
+          '<button class="btn-danger btn-delete" data-id="' + item.id + '">삭제</button>' +
+        '</div>' +
+      '</div>';
+    }).join("");
 
-    el.querySelectorAll(".btn-load").forEach(btn => {
-      btn.addEventListener("click", (e) => {
+    el.querySelectorAll(".btn-load").forEach(function(btn) {
+      btn.addEventListener("click", function(e) {
         e.stopPropagation();
         loadRecord(btn.dataset.id);
       });
     });
 
-    el.querySelectorAll(".btn-copy").forEach(btn => {
-      btn.addEventListener("click", async (e) => {
+    el.querySelectorAll(".btn-copy").forEach(function(btn) {
+      btn.addEventListener("click", function(e) {
         e.stopPropagation();
-        const item = state.history.find(x => x.id === btn.dataset.id);
+        var item = state.history.find(function(x) { return x.id === btn.dataset.id; });
         if (!item || !item.result) {
           showStatus("복사할 결과가 없습니다.", "error");
           return;
         }
-        try {
-          await copyText(item.result);
-          showStatus("저장된 결과를 복사했습니다.", "success");
-        } catch {
-          showStatus("복사 실패.", "error");
-        }
+        copyText(item.result)
+          .then(function() { showStatus("저장된 결과를 복사했습니다.", "success"); })
+          .catch(function() { showStatus("복사 실패.", "error"); });
       });
     });
 
-    el.querySelectorAll(".btn-delete").forEach(btn => {
-      btn.addEventListener("click", (e) => {
+    el.querySelectorAll(".btn-delete").forEach(function(btn) {
+      btn.addEventListener("click", function(e) {
         e.stopPropagation();
         deleteRecord(btn.dataset.id);
       });
     });
 
-    el.querySelectorAll(".history-item").forEach(card => {
-      card.addEventListener("click", () => loadRecord(card.dataset.id));
+    el.querySelectorAll(".history-item").forEach(function(card) {
+      card.addEventListener("click", function() { loadRecord(card.dataset.id); });
     });
   }
 
   function loadRecord(id) {
-    const item = state.history.find(x => x.id === id);
+    var item = state.history.find(function(x) { return x.id === id; });
     if (!item) return;
     $("tickerInput").value = item.ticker || "";
     $("marketSelect").value = item.market || "auto";
@@ -886,7 +634,7 @@ ${ticker}
   }
 
   function deleteRecord(id) {
-    state.history = state.history.filter(x => x.id !== id);
+    state.history = state.history.filter(function(x) { return x.id !== id; });
     persist();
     renderHistory();
     showStatus("삭제했습니다.", "success");
@@ -901,28 +649,28 @@ ${ticker}
   }
 
   function exportJson() {
-    const blob = new Blob([JSON.stringify(state.history, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
+    var blob = new Blob([JSON.stringify(state.history, null, 2)], { type: "application/json" });
+    var a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `financial-dashboard-backup-${formatDate(new Date())}.json`;
+    a.download = "financial-dashboard-backup-" + formatDate(new Date()) + ".json";
     a.click();
     URL.revokeObjectURL(a.href);
     showStatus("백업 파일을 내보냈습니다.", "success");
   }
 
   function importJson(e) {
-    const file = e.target.files[0];
+    var file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
+    var reader = new FileReader();
+    reader.onload = function() {
       try {
-        const data = JSON.parse(reader.result);
+        var data = JSON.parse(reader.result);
         if (!Array.isArray(data)) throw new Error("invalid");
         state.history = data.concat(state.history).slice(0, 300);
         persist();
         renderHistory();
         showStatus("백업 파일을 불러왔습니다.", "success");
-      } catch {
+      } catch(err) {
         showStatus("JSON 형식이 올바르지 않습니다.", "error");
       } finally {
         e.target.value = "";
@@ -932,32 +680,32 @@ ${ticker}
   }
 
   function formatDate(d) {
-    const x = new Date(d);
-    return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;
+    var x = new Date(d);
+    return x.getFullYear() + "-" + String(x.getMonth()+1).padStart(2,"0") + "-" + String(x.getDate()).padStart(2,"0");
   }
 
   function formatDateTime(d) {
-    const x = new Date(d);
-    return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")} ${String(x.getHours()).padStart(2,"0")}:${String(x.getMinutes()).padStart(2,"0")}`;
+    var x = new Date(d);
+    return x.getFullYear() + "-" + String(x.getMonth()+1).padStart(2,"0") + "-" + String(x.getDate()).padStart(2,"0") + " " + String(x.getHours()).padStart(2,"0") + ":" + String(x.getMinutes()).padStart(2,"0");
   }
 
   function escapeHtml(str) {
     return String(str)
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;")
-      .replaceAll("'","&#039;");
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#039;");
   }
 
   function cryptoRandom() {
     return (window.crypto && crypto.randomUUID)
       ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      : Date.now() + "-" + Math.random().toString(16).slice(2);
   }
 
   init();
 })();
 </script>
 </body>
-  </html>
+</html>
