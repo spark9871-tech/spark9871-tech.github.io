@@ -23,7 +23,7 @@ h1{font-size:26px;color:var(--accent);margin-bottom:6px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
 .card h2{font-size:17px;margin-bottom:12px;color:var(--accent)}
 input[type="text"],textarea,select{width:100%;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:14px}
-textarea{min-height:200px;resize:vertical;font-family:Consolas,Monaco,monospace;line-height:1.6}
+textarea{min-height:180px;resize:vertical;font-family:Consolas,Monaco,monospace;line-height:1.6}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .row+.row{margin-top:10px}
 button,.btn-link{border:none;border-radius:10px;padding:11px 16px;cursor:pointer;font-size:14px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}
@@ -33,6 +33,8 @@ button,.btn-link{border:none;border-radius:10px;padding:11px 16px;cursor:pointer
 .btn-secondary{background:var(--card2);color:var(--text);border:1px solid var(--line)}
 .btn-success{background:rgba(34,197,94,.15);color:#86efac;border:1px solid rgba(34,197,94,.3)}
 .btn-warn{background:rgba(245,158,11,.15);color:#fcd34d;border:1px solid rgba(245,158,11,.3)}
+.btn-purple{background:rgba(139,92,246,.2);color:#c4b5fd;border:1px solid rgba(139,92,246,.4);font-weight:700}
+.btn-purple:hover{background:rgba(139,92,246,.35)}
 .status{margin-top:12px;padding:12px 14px;border-radius:10px;border:1px solid var(--line);display:none}
 .status.show{display:block}
 .status.info{background:rgba(56,189,248,.12);color:#7dd3fc}
@@ -51,14 +53,25 @@ button,.btn-link{border:none;border-radius:10px;padding:11px 16px;cursor:pointer
 .history-top{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:6px}
 .history-name{font-weight:700;color:var(--accent)}
 .history-date{font-size:12px;color:var(--muted)}
-@media(max-width:768px){.meta{grid-template-columns:1fr}}
+.pplx-frame{border:2px solid rgba(139,92,246,.4);border-radius:14px;overflow:hidden;margin:14px 0;position:relative;background:#1a1a2e}
+.pplx-frame .frame-header{background:rgba(139,92,246,.15);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(139,92,246,.3)}
+.pplx-frame .frame-header span{color:#c4b5fd;font-weight:600;font-size:14px}
+.pplx-frame iframe{width:100%;height:600px;border:none}
+.pplx-frame .frame-overlay{position:absolute;top:48px;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.85);z-index:2}
+.pplx-frame .frame-overlay .ov-content{text-align:center;padding:40px}
+.pplx-frame .frame-overlay .ov-content p{color:var(--muted);margin:12px 0;font-size:14px;line-height:1.6}
+.pplx-frame .frame-overlay .ov-content .big-icon{font-size:48px;margin-bottom:12px}
+.auto-check{display:flex;align-items:center;gap:8px;margin-top:10px}
+.auto-check input[type="checkbox"]{width:auto;accent-color:var(--accent)}
+.auto-check label{color:var(--muted);font-size:13px;cursor:pointer}
+@media(max-width:768px){.meta{grid-template-columns:1fr}.pplx-frame iframe{height:450px}}
 </style>
 </head>
 <body>
 <div class="wrap">
 <header>
 <h1>Pipeline - 종목 원클릭 분석</h1>
-<div class="sub">종목명 입력 -> 데이터 추출 프롬프트 -> 딥서치 분석 (기업분석2 스페이스)</div>
+<div class="sub">종목명 입력 -> 데이터 추출 프롬프트 -> Perplexity 실행 -> 딥서치 분석 (기업분석2)</div>
 </header>
 
 <div class="steps" id="stepIndicator">
@@ -87,19 +100,45 @@ button,.btn-link{border:none;border-radius:10px;padding:11px 16px;cursor:pointer
 <div class="row" style="margin-top:14px">
 <button id="runBtn" class="btn-primary btn-big">RUN 일괄 실행</button>
 </div>
+<div class="auto-check">
+<input type="checkbox" id="autoOpenPplx" checked>
+<label for="autoOpenPplx">RUN 시 Perplexity 자동 실행</label>
+</div>
 <div id="statusBox" class="status"></div>
 <div id="logBox" class="log hidden"></div>
 </div>
 
 <!-- STEP 2 -->
 <div class="card" id="step2Card">
-<h2>STEP 2. 데이터 추출 프롬프트</h2>
-<div class="sub" style="margin-bottom:10px">아래 프롬프트를 Perplexity에 붙여넣고 실행하세요</div>
-<textarea id="extractPrompt" placeholder="RUN 버튼을 누르면 자동 생성됩니다."></textarea>
-<div class="row" style="margin-top:10px">
-<button id="copyExtractBtn" class="btn-secondary">1. 프롬프트 복사</button>
-<a id="openPerplexityBtn" class="btn-link btn-secondary" href="https://www.perplexity.ai" target="_blank" rel="noopener">2. Perplexity 열기</a>
+<h2>STEP 2. 데이터 추출 (Perplexity)</h2>
+<div class="sub" style="margin-bottom:10px">프롬프트가 생성되면 Perplexity에 자동 전송됩니다</div>
+<details style="margin-bottom:12px">
+<summary style="cursor:pointer;color:var(--muted);font-size:13px">프롬프트 확인/편집 (클릭하여 펼치기)</summary>
+<textarea id="extractPrompt" placeholder="RUN 버튼을 누르면 자동 생성됩니다." style="margin-top:8px"></textarea>
+<div class="row" style="margin-top:8px">
+<button id="copyExtractBtn" class="btn-secondary">프롬프트 복사</button>
 </div>
+</details>
+
+<div class="pplx-frame" id="pplxFrame">
+<div class="frame-header">
+<span>Perplexity AI</span>
+<div class="row" style="margin:0">
+<button id="sendToPplxBtn" class="btn-purple">프롬프트 전송 실행</button>
+<button id="openPplxNewTab" class="btn-secondary" style="padding:8px 12px;font-size:12px">새탭으로 열기</button>
+</div>
+</div>
+<iframe id="pplxIframe" src="about:blank"></iframe>
+<div class="frame-overlay" id="pplxOverlay">
+<div class="ov-content">
+<div class="big-icon">AI</div>
+<p><b>Perplexity AI</b></p>
+<p>STEP 1에서 종목을 입력하고 RUN을 누르면<br>여기에서 Perplexity가 실행됩니다.</p>
+<p style="font-size:12px;color:var(--muted)">보안 정칅상 iframe 로드가 제한될 수 있으며,<br>그 경우 자동으로 새 탭으로 열립니다.</p>
+</div>
+</div>
+</div>
+
 <hr class="divider">
 <div class="sub" style="margin-bottom:8px">⬇ Perplexity 결과를 여기에 붙여넣기</div>
 <textarea id="dataResult" placeholder="Perplexity에서 받은 재무 데이터를 여기에 붙여넣으세요."></textarea>
@@ -127,15 +166,16 @@ button,.btn-link{border:none;border-radius:10px;padding:11px 16px;cursor:pointer
 <div id="historyList" class="history-list"></div>
 </div>
 
-</div><!-- /wrap -->
+</div>
 
 <script>
 (()=>{
 const STORE='pipeline_history_v1';
 const $=id=>document.getElementById(id);
 let history=[];
+let pplxWindow=null;
 
-const KR_TICKERS={'삼성전자':'005930','SK하이닉스':'000660','LG에너지솔루션':'373220','삼성바이오로직스':'207940','현대차':'005380','기아':'000270','셀트리온':'068270','KB금융':'105560','신한지주':'055550','POSCO홀딩스':'005490','NAVER':'035420','삼성SDI':'006400','LG화학':'051910','현대모비스':'012330','카카오':'035720','삼성물산':'028260','한화에어로스페이스':'012450','메리츠금융지주':'138040','SK이노베이션':'096770','두산에너빌리티':'034020','HD현대중공업':'329180','한국전력':'015760','LG전자':'066570','SK텔레콤':'017670','하나금융지주':'086790','우리금융지주':'316140','삼성전기':'009150','HD한국조선해양':'009540','한화오션':'042660','에코프로비엠':'247540','에코프로':'086520','포스코퓨처엠':'003670','HLB':'028300','크래프톤':'259960'};
+const KR_TICKERS={'삼성전자':'005930','SK하이닉스':'000660','LG에너지솔루션':'373220','삼성바이오로직스':'207940','현대차':'005380','기아':'000270','셀트리온':'068270','KB금융':'105560','신한지주':'055550','POSCO홀딩스':'005490','NAVER':'035420','삼성SDI':'006400','LG화학':'051910','현대모비스':'012330','카카오':'035720','삼성물산':'028260','한화에어로스페이스':'012450','메리츠금융지주':'138040','SK이노베이션':'096770','두산에너빌리티':'034020','HD현대중공업':'329180','한국전력':'015760','LG전자':'066570','SK텔레콤':'017670','하나금융지주':'086790','우리금융지주':'316140','삼성전기':'009150','HD한국조선해양':'009540','한화오션':'042660','에코프로비엠':'247540','에코프로':'086520','포스코퓨처엠':'003670','HLB':'028300','크래프톤':'259960','컨택':'052790'};
 
 function detectMarket(t){
 const m=$('marketSelect').value;
@@ -180,6 +220,36 @@ document.body.removeChild(ta);
 });
 }
 
+function openPerplexity(prompt){
+const url='https://www.perplexity.ai/search?q='+encodeURIComponent(prompt);
+// Try iframe first
+const iframe=$('pplxIframe');
+const overlay=$('pplxOverlay');
+try{
+iframe.src=url;
+overlay.style.display='none';
+log('Perplexity iframe 로드 시도...');
+// Check if iframe loaded after 3s, if blocked open new tab
+setTimeout(()=>{
+try{
+const iDoc=iframe.contentDocument||iframe.contentWindow.document;
+if(!iDoc||iDoc.location.href==='about:blank'){
+throw new Error('blocked');
+}
+}catch(e){
+log('iframe 차단됨 - 새 탭으로 열기');
+pplxWindow=window.open(url,'pplx_window','width=1200,height=800,scrollbars=yes');
+overlay.innerHTML='<div class="ov-content"><div class="big-icon">OK</div><p><b>Perplexity가 새 탭에서 실행 중입니다</b></p><p>결과를 복사하여 아래에 붙여넣으세요</p></div>';
+overlay.style.display='flex';
+}
+},3000);
+}catch(e){
+pplxWindow=window.open(url,'pplx_window','width=1200,height=800,scrollbars=yes');
+overlay.innerHTML='<div class="ov-content"><div class="big-icon">OK</div><p><b>Perplexity가 새 탭에서 실행 중입니다</b></p><p>결과를 복사하여 아래에 붙여넣으세요</p></div>';
+overlay.style.display='flex';
+}
+}
+
 function buildExtractPrompt(ticker,market){
 const tLow=ticker.toLowerCase();
 const krCode=KR_TICKERS[ticker]||'';
@@ -188,15 +258,13 @@ p+="\u25a0 공통 규칙\n";
 p+="- 숫자는 반드시 크롤링 결과에 있는 값만 사용\n";
 p+="- 추정/보간/역산 금지\n";
 p+="- 항목별 실패 시 \u274c 미확인 표기\n";
-p+="- 데이터 시점이 다르면 각 항목에 기준일 명시\n";
 p+="- 질문하지 말고 즉시 실행\n\n";
 if(market==='us'){
-p+="\u25a0 미국 주식 처리\n";
-p+="search_web 쿼리:\n";
+p+="\u25a0 미국 주식\nsearch_web:\n";
 p+="1) site:stockanalysis.com "+ticker+" financials\n";
 p+="2) site:stockanalysis.com "+ticker+" forecast\n";
 p+="3) site:stockanalysis.com "+ticker+" statistics\n\n";
-p+="fetch_url 대상:\n";
+p+="fetch_url:\n";
 p+="1) stockanalysis.com/stocks/"+tLow+"/financials/?p=quarterly\n";
 p+="2) stockanalysis.com/stocks/"+tLow+"/financials/\n";
 p+="3) stockanalysis.com/stocks/"+tLow+"/financials/balance-sheet/\n";
@@ -206,92 +274,60 @@ p+="6) stockanalysis.com/stocks/"+tLow+"/forecast/\n";
 p+="7) stockanalysis.com/stocks/"+tLow+"/ratings/\n";
 p+="8) stockanalysis.com/stocks/"+tLow+"/financials/ratios/\n\n";
 }else{
-p+="\u25a0 한국 주식 처리\n";
-p+="search_web 쿼리:\n";
+p+="\u25a0 한국 주식\nsearch_web:\n";
 p+="1) "+ticker+" 재무제표 매출 영업이익\n";
 p+="2) "+ticker+" 실적 분기 컨센서스\n";
 p+="3) site:comp.fnguide.com "+ticker+"\n\n";
-p+="fetch_url 대상:\n";
+p+="fetch_url:\n";
 p+="1) comp.fnguide.com 기업 메인/재무/컨센서스\n";
 if(krCode)p+="2) finance.naver.com/item/main.naver?code="+krCode+"\n";
-p+="3) DART 공시 관련 페이지\n\n";
+p+="3) DART 공시\n\n";
 }
-p+="\u25a0 출력 형식\n";
-p+="===== 복사용 데이터 블록 START =====\n";
-p+="\ud83c\udfe2 기업: [기업명] | 티커: [티커] ([거래소])\n";
-p+="\ud83d\udcc5 수집일: [YYYY-MM-DD]\n";
-p+="\ud83d\udcca 출처: [소스명]\n\n";
-p+="[A] 가격/시총\n";
-p+="- 주가/시가총액/EV/52주 고저/발행주식수/Beta\n\n";
-p+="[B] 분기 실적 (최근 4분기)\n";
-p+="| 분기 | 매출 | 영업이익 | 순이익 | EPS |\n\n";
-p+="[C] 연간 재무제표 (3개년)\n";
-p+="매출/성장률/매출총이익/영업이익/EBITDA/순이익/EPS/총자산/부채/자본/OCF/Capex/FCF\n";
-p+="ROE/ROA/ROIC/영업이익률/순이익률\n\n";
-p+="[D] 밸류에이션\n";
-p+="Trailing PE/Forward PE/PS/PB/EV-EBITDA/EV-Sales/Earnings Yield/FCF Yield\n\n";
-p+="[E] 컨센서스\n";
-p+="목표가(mean/median/high/low)/추천등급/분포(Buy/Hold/Sell)\n\n";
-p+="[F] 주요 주주\n";
-p+="기관보유/내부자/공매도\n\n";
-p+="[G] 배당\n";
-p+="배당수익률/배당성향/바이백 수익률\n\n";
-p+="[미확인 항목]\n";
-p+="===== 복사용 데이터 블록 END =====";
+p+="\u25a0 출력: 복사용 데이터 블록\n";
+p+="[A] 가격/시총 - 주가,시가총액,EV,52주고저,발행주식수,Beta\n";
+p+="[B] 분기실적(4Q) - 매출,영업이익,순이익,EPS\n";
+p+="[C] 연간재무(3Y) - 매출~FCF,ROE/ROA/ROIC/마진\n";
+p+="[D] 밸류에이션 - PE,PS,PB,EV/EBITDA\n";
+p+="[E] 컨센서스 - 목표가,추천\n";
+p+="[F] 주요주주 - 기관,내부자,공매도\n";
+p+="[G] 배당 - 수익률,성향\n";
 return p;
 }
 
 function buildDeepSearchPrompt(ticker,data){
 let p="dd "+ticker+"\n\n";
-p+="아래는 "+ticker+"의 실제 재무 데이터입니다. 이 데이터를 기반으로 딥서치 분석을 수행하세요.\n\n";
-p+="========== 재무 데이터 ==========\n";
-p+=data+"\n";
-p+="========== 재무 데이터 끝 ==========\n\n";
-p+="\u25a0 분석 프레임워크 (6단계)\n\n";
-p+="1. 기업 개요\n";
-p+="- 사업 모델, 주력 제품/서비스, 매출 구성, 경쟁사 대비 포지션\n\n";
-p+="2. 산업/시장 환경\n";
-p+="- TAM/SAM 규모, 성장 드라이버, 규제 환경, 경쟁 구도, 글로벌 매크로 영향\n\n";
-p+="3. 재무 분석 (위 데이터 기반)\n";
-p+="- 매출 성장 트렌드, 마진 변화, 수익성 분석\n";
-p+="- 대차대조표 건전성 (D/E, 유동비율)\n";
-p+="- 현금흐름 품질 (OCF vs 순이익, FCF 추이)\n";
-p+="- ROE/ROIC 추이 해석\n\n";
-p+="4. 성장성 & 리스크\n";
-p+="- 향후 3년 성장 드라이버, R&D/신제품 파이프라인\n";
-p+="- 주요 리스크 요인 (3개 이상)\n";
-p+="- Bull/Bear 시나리오\n\n";
-p+="5. 밸류에이션\n";
-p+="- 현재 PER/PBR/EV-EBITDA 수준 평가\n";
-p+="- 동종 업체/히스토리커리 대비\n";
-p+="- DCF 또는 적정 밸류 범위 제시\n\n";
-p+="6. 투자 의견\n";
-p+="- 종합 평가 (Bullish/Neutral/Bearish)\n";
-p+="- 목표가 범위 제시\n";
-p+="- 핵심 모니터링 지표 3개\n";
-p+="- 주의사항\n";
+p+="아래는 "+ticker+" 실제 재무 데이터. 이 데이터 기반 딥서치 분석 수행.\n\n";
+p+="========== 재무 데이터 ==========\n"+data+"\n========== END ==========\n\n";
+p+="\u25a0 6단계 분석\n";
+p+="1. 기업개요 - 사업모델,주력제품,매출구성,경쟁사 포지션\n";
+p+="2. 산업/시장 - TAM/SAM,성장드라이버,규제,경쟁구도,매크로\n";
+p+="3. 재무분석 - 매출트렌드,마진,대차대조표,현금흐름,ROE/ROIC\n";
+p+="4. 성장성&리스크 - 3년성장,R&D,Bull/Bear\n";
+p+="5. 밸류에이션 - PER/PBR/EV-EBITDA,동종대비,DCF\n";
+p+="6. 투자의견 - Bullish/Neutral/Bearish,목표가,모니터링지표3개\n";
 return p;
 }
 
-// === Event Handlers ===
+// === Events ===
 function run(){
 const ticker=$('tickerInput').value.trim();
 if(!ticker){status('종목명을 입력하세요.','error');return;}
 $('logBox').innerHTML='';
 const market=detectMarket(ticker);
 log('종목: '+ticker+' | 시장: '+market.toUpperCase());
-setStep(1);
-log('STEP 1 완료 - 종목 확인');
+setStep(1);log('STEP 1 완료');
 setStep(2);
 const ep=buildExtractPrompt(ticker,market);
 $('extractPrompt').value=ep;
-log('STEP 2 - 데이터 추출 프롬프트 생성 완료 ('+ep.length+'자)');
-copyText(ep).then(()=>{
-log('프롬프트가 클립보드에 복사되었습니다.');
-status('프롬프트 생성+복사 완료! Perplexity에 붙여넣으세요.','success');
-}).catch(()=>{
-status('프롬프트 생성 완료. 수동 복사하세요.','info');
-});
+log('STEP 2 - 프롬프트 생성 ('+ep.length+'자)');
+copyText(ep).then(()=>log('클립보드 복사 완료')).catch(()=>{});
+if($('autoOpenPplx').checked){
+openPerplexity(ep);
+log('Perplexity 자동 실행');
+status('프롬프트 생성 + Perplexity 실행 완료!','success');
+}else{
+status('프롬프트 생성 완료. Perplexity에 붙여넣으세요.','success');
+}
 saveHistory(ticker,market,ep,'','');
 }
 
@@ -304,15 +340,30 @@ if(!v){status('복사할 프롬프트가 없습니다.','error');return;}
 copyText(v).then(()=>status('프롬프트 복사 완료','success')).catch(()=>status('복사 실패','error'));
 });
 
+$('sendToPplxBtn').addEventListener('click',()=>{
+const ep=$('extractPrompt').value.trim();
+if(!ep){status('먼저 RUN을 실행하세요.','error');return;}
+openPerplexity(ep);
+log('Perplexity 수동 전송');
+status('Perplexity에 프롬프트 전송 완료','success');
+});
+
+$('openPplxNewTab').addEventListener('click',()=>{
+const ep=$('extractPrompt').value.trim();
+if(!ep){window.open('https://www.perplexity.ai','_blank');return;}
+const url='https://www.perplexity.ai/search?q='+encodeURIComponent(ep);
+window.open(url,'_blank');
+});
+
 $('buildDeepBtn').addEventListener('click',()=>{
 const ticker=$('tickerInput').value.trim();
 const data=$('dataResult').value.trim();
 if(!ticker){status('종목명을 입력하세요.','error');return;}
-if(!data){status('STEP 2의 재무 데이터를 먼저 붙여넣으세요.','error');return;}
+if(!data){status('STEP 2 재무 데이터를 먼저 붙여넣으세요.','error');return;}
 const dp=buildDeepSearchPrompt(ticker,data);
 $('deepPrompt').value=dp;
 setStep(3);
-log('STEP 3 - 딥서치 프롬프트 생성 완료 ('+dp.length+'자)');
+log('STEP 3 - 딥서치 프롬프트 ('+dp.length+'자)');
 status('딥서치 프롬프트 생성 완료!','success');
 updateHistory(ticker,data,dp);
 });
@@ -332,60 +383,39 @@ window.open('https://www.perplexity.ai/search?s=u&q=dd+'+encodeURIComponent($('t
 // === History ===
 function saveHistory(ticker,market,extractP,data,deepP){
 const item={id:Date.now()+'-'+Math.random().toString(16).slice(2),ticker,market,extractP,data,deepP,ts:new Date().toISOString()};
-history.unshift(item);
-history=history.slice(0,20);
-localStorage.setItem(STORE,JSON.stringify(history));
-renderHistory();
+history.unshift(item);history=history.slice(0,20);
+localStorage.setItem(STORE,JSON.stringify(history));renderHistory();
 }
 function updateHistory(ticker,data,deepP){
 const item=history.find(h=>h.ticker===ticker);
 if(item){item.data=data;item.deepP=deepP;item.ts=new Date().toISOString();
 localStorage.setItem(STORE,JSON.stringify(history));renderHistory();}
 }
-function loadHistory(){
-try{history=JSON.parse(localStorage.getItem(STORE))||[];}catch(e){history=[];}
-}
+function loadHistory(){try{history=JSON.parse(localStorage.getItem(STORE))||[];}catch(e){history=[];}}
 function renderHistory(){
 const q=$('searchHistory').value.trim().toLowerCase();
 const list=history.filter(h=>!q||(h.ticker+' '+h.market).toLowerCase().includes(q));
 const el=$('historyList');
 if(!list.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:24px">저장된 내역이 없습니다.</div>';return;}
-el.innerHTML=list.map(h=>'<div class="history-item" data-id="'+h.id+'">'+'<div class="history-top">'+'<div class="history-name">'+esc(h.ticker)+' <span style="color:var(--muted);font-size:12px">'+h.market.toUpperCase()+'</span></div>'+'<div class="history-date">'+fmtDate(h.ts)+'</div>'+'</div>'+'<div class="row">'+'<button class="btn-secondary btn-sm" data-action="load" data-id="'+h.id+'">불러오기</button>'+'<button class="btn-secondary btn-sm" data-action="del" data-id="'+h.id+'">삭제</button>'+'</div></div>').join('');
+el.innerHTML=list.map(h=>'<div class="history-item" data-id="'+h.id+'"><div class="history-top"><div class="history-name">'+esc(h.ticker)+' <span style="color:var(--muted);font-size:12px">'+h.market.toUpperCase()+'</span></div><div class="history-date">'+fmtDate(h.ts)+'</div></div><div class="row"><button class="btn-secondary" data-action="load" data-id="'+h.id+'">불러오기</button><button class="btn-secondary" data-action="del" data-id="'+h.id+'">삭제</button></div></div>').join('');
 el.querySelectorAll('[data-action="load"]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();loadItem(b.dataset.id);}));
 el.querySelectorAll('[data-action="del"]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();delItem(b.dataset.id);}));
 }
 function loadItem(id){
 const h=history.find(x=>x.id===id);if(!h)return;
-$('tickerInput').value=h.ticker;
-$('marketSelect').value=h.market;
-$('extractPrompt').value=h.extractP||'';
-$('dataResult').value=h.data||'';
-$('deepPrompt').value=h.deepP||'';
-status(h.ticker+' 내역을 불러왔습니다.','success');
+$('tickerInput').value=h.ticker;$('marketSelect').value=h.market;
+$('extractPrompt').value=h.extractP||'';$('dataResult').value=h.data||'';$('deepPrompt').value=h.deepP||'';
+status(h.ticker+' 불러옴','success');
 }
-function delItem(id){
-history=history.filter(x=>x.id!==id);
-localStorage.setItem(STORE,JSON.stringify(history));renderHistory();
-}
-$('clearHistoryBtn').addEventListener('click',()=>{
-if(!confirm('모든 내역을 삭제하시겠습니까?'))return;
-history=[];localStorage.removeItem(STORE);renderHistory();
-});
+function delItem(id){history=history.filter(x=>x.id!==id);localStorage.setItem(STORE,JSON.stringify(history));renderHistory();}
+$('clearHistoryBtn').addEventListener('click',()=>{if(!confirm('모두 삭제?'))return;history=[];localStorage.removeItem(STORE);renderHistory();});
 $('searchHistory').addEventListener('input',renderHistory);
-
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function fmtDate(d){const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')+' '+String(x.getHours()).padStart(2,'0')+':'+String(x.getMinutes()).padStart(2,'0');}
 
-// URL param support
 const params=new URLSearchParams(location.search);
-if(params.get('ticker')){
-$('tickerInput').value=params.get('ticker');
-if(params.get('market'))$('marketSelect').value=params.get('market');
-setTimeout(run,300);
-}
-
-loadHistory();
-renderHistory();
+if(params.get('ticker')){$('tickerInput').value=params.get('ticker');if(params.get('market'))$('marketSelect').value=params.get('market');setTimeout(run,300);}
+loadHistory();renderHistory();
 })();
 </script>
 </body>
